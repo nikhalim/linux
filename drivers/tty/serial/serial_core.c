@@ -3404,6 +3404,38 @@ int serial_core_register_port(struct uart_driver *drv, struct uart_port *port)
 	 */
 	port->flags |= UPF_DEAD;
 
+	if (port->dev == NULL) {
+		const char *driver_name = drv->driver_name;
+		
+		if (strncmp(driver_name, "niserial987x", 12) == 0) {
+			// Max number of cRIO modules = 8
+			// Max number of uart ports per module = 4
+			const char *const platform_device_names[32] = {
+				"serial_core_anonymous_1",  "serial_core_anonymous_2",  "serial_core_anonymous_3",  "serial_core_anonymous_4",
+				"serial_core_anonymous_5",  "serial_core_anonymous_6",  "serial_core_anonymous_7",  "serial_core_anonymous_8",
+				"serial_core_anonymous_9",  "serial_core_anonymous_10", "serial_core_anonymous_11", "serial_core_anonymous_12",
+				"serial_core_anonymous_13", "serial_core_anonymous_14", "serial_core_anonymous_15", "serial_core_anonymous_16",
+				"serial_core_anonymous_17", "serial_core_anonymous_18",	"serial_core_anonymous_19", "serial_core_anonymous_20",
+				"serial_core_anonymous_21", "serial_core_anonymous_22",	"serial_core_anonymous_23", "serial_core_anonymous_24",
+				"serial_core_anonymous_25", "serial_core_anonymous_26",	"serial_core_anonymous_27", "serial_core_anonymous_28",
+				"serial_core_anonymous_29", "serial_core_anonymous_30",	"serial_core_anonymous_31", "serial_core_anonymous_32"
+			};
+			static struct platform_device *anonymous_parent_dev = NULL;
+			int slot_number = 0;
+			sscanf(driver_name, "niserial987xSlot%uDriver", &slot_number);				
+			int dev_num = (((slot_number - 1) * 4) + port->line);
+			
+			anonymous_parent_dev = platform_device_register_simple(platform_device_names[dev_num], -1, NULL, 0);
+			if (PTR_ERR_OR_ZERO(anonymous_parent_dev)) {
+				goto err_unlock;
+			}		
+
+			port->dev = &anonymous_parent_dev->dev;
+		}
+		
+		goto err_unlock;
+	}
+
 	/* Inititalize a serial core controller device if needed */
 	ctrl_dev = serial_core_ctrl_find(drv, port->dev, port->ctrl_id);
 	if (!ctrl_dev) {
