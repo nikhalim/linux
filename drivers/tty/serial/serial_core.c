@@ -3410,30 +3410,32 @@ int serial_core_register_port(struct uart_driver *drv, struct uart_port *port)
 		if (strncmp(driver_name, "niserial987x", 12) == 0) {
 			// Max number of cRIO modules = 8
 			// Max number of uart ports per module = 4
-			const char *const platform_device_names[32] = {
-				"serial_core_anonymous_1",  "serial_core_anonymous_2",  "serial_core_anonymous_3",  "serial_core_anonymous_4",
-				"serial_core_anonymous_5",  "serial_core_anonymous_6",  "serial_core_anonymous_7",  "serial_core_anonymous_8",
-				"serial_core_anonymous_9",  "serial_core_anonymous_10", "serial_core_anonymous_11", "serial_core_anonymous_12",
-				"serial_core_anonymous_13", "serial_core_anonymous_14", "serial_core_anonymous_15", "serial_core_anonymous_16",
-				"serial_core_anonymous_17", "serial_core_anonymous_18",	"serial_core_anonymous_19", "serial_core_anonymous_20",
-				"serial_core_anonymous_21", "serial_core_anonymous_22",	"serial_core_anonymous_23", "serial_core_anonymous_24",
-				"serial_core_anonymous_25", "serial_core_anonymous_26",	"serial_core_anonymous_27", "serial_core_anonymous_28",
-				"serial_core_anonymous_29", "serial_core_anonymous_30",	"serial_core_anonymous_31", "serial_core_anonymous_32"
-			};
+			static const char *const platform_device_names[8][4] = {
+				{"987x_1_1", "987x_1_2", "987x_1_3", "987x_1_4"},
+				{"987x_2_1", "987x_2_2", "987x_2_3", "987x_2_4"},
+				{"987x_3_1", "987x_3_2", "987x_3_3", "987x_3_4"},
+				{"987x_4_1", "987x_4_2", "987x_4_3", "987x_4_4"},
+				{"987x_5_1", "987x_5_2", "987x_5_3", "987x_5_4"},
+				{"987x_6_1", "987x_6_2", "987x_6_3", "987x_6_4"},
+				{"987x_7_1", "987x_7_2", "987x_7_3", "987x_7_4"},
+				{"987x_8_1", "987x_8_2", "987x_8_3", "987x_8_4"}};
 			static struct platform_device *anonymous_parent_dev = NULL;
 			int slot_number = 0;
-			sscanf(driver_name, "niserial987xSlot%uDriver", &slot_number);				
-			int dev_num = (((slot_number - 1) * 4) + port->line);
 			
-			anonymous_parent_dev = platform_device_register_simple(platform_device_names[dev_num], -1, NULL, 0);
+			if (sscanf(driver_name, "niserial987xSlot%uDriver", &slot_number) != 1){
+				goto err_unlock;
+			}
+			
+			anonymous_parent_dev = platform_device_register_simple(platform_device_names[slot_number - 1][port->line], -1, NULL, 0);
 			if (PTR_ERR_OR_ZERO(anonymous_parent_dev)) {
 				goto err_unlock;
 			}		
 
 			port->dev = &anonymous_parent_dev->dev;
 		}
-		
-		goto err_unlock;
+		else {
+			goto err_unlock;
+		}
 	}
 
 	/* Inititalize a serial core controller device if needed */
@@ -3501,6 +3503,11 @@ void serial_core_unregister_port(struct uart_driver *drv, struct uart_port *port
 	/* Drop the serial core controller device if no ports are using it */
 	if (!serial_core_ctrl_find(drv, phys_dev, ctrl_id))
 		serial_base_ctrl_device_remove(ctrl_dev);
+
+	/* Remove the platform_device created for niserial987xDriver */
+	if (strncmp(drv->driver_name, "niserial987x", 12) == 0) {
+		platform_device_del(to_platform_device(phys_dev));
+	}
 
 	mutex_unlock(&port_mutex);
 }
